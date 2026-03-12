@@ -1,0 +1,15 @@
+.DS_Store
+
+# Go
+backend/tmp/
+backend/bin/
+backend/.idea/
+backend/*.exe
+backend/*.test
+backend/*.out
+
+# Env
+.env
+
+# Docker
+**/.docker/

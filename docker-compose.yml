@@ -1,0 +1,11 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      target: dev
+    environment:
+      HTTP_ADDR: 0.0.0.0:${BACKEND_PORT:-8080}
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    volumes:
+      - ./backend:/app
