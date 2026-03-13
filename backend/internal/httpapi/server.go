@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -44,7 +45,6 @@ func NewServer(cfg ServerConfig) *http.Server {
 
 		var req struct {
 			OriginalURL string `json:"original_url"`
-			TypoURL     string `json:"oritinal_url"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid_json"})
@@ -53,10 +53,17 @@ func NewServer(cfg ServerConfig) *http.Server {
 
 		original := strings.TrimSpace(req.OriginalURL)
 		if original == "" {
-			original = strings.TrimSpace(req.TypoURL)
-		}
-		if original == "" {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing_original_url"})
+			return
+		}
+
+		parsed, err := url.Parse(original)
+		if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid_url"})
+			return
+		}
+		if parsed.Scheme != "http" && parsed.Scheme != "https" {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid_url_scheme"})
 			return
 		}
 
@@ -72,9 +79,9 @@ func NewServer(cfg ServerConfig) *http.Server {
 		writeJSON(w, http.StatusOK, map[string]any{"short_url_code": code})
 	})
 
-	// original_url
-	//   GET: /original_url/{short_url_code}
-	mux.HandleFunc("/original_url/", func(w http.ResponseWriter, r *http.Request) {
+	// redirect
+	//   GET: /{short_url_code}
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
@@ -85,8 +92,7 @@ func NewServer(cfg ServerConfig) *http.Server {
 			return
 		}
 
-		code := strings.TrimPrefix(r.URL.Path, "/original_url/")
-		code = strings.TrimSpace(code)
+		code := strings.Trim(strings.TrimPrefix(r.URL.Path, "/"), " ")
 		if code == "" || strings.Contains(code, "/") {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid_short_url_code"})
 			return
@@ -105,7 +111,7 @@ func NewServer(cfg ServerConfig) *http.Server {
 			return
 		}
 
-		writeJSON(w, http.StatusOK, map[string]any{"original_url": original})
+		http.Redirect(w, r, original, http.StatusMovedPermanently)
 	})
 
 	return &http.Server{
