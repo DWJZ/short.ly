@@ -10,10 +10,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/tianmuwu/short.ly/internal/httpapi"
 )
 
 func main() {
+	_ = godotenv.Load(".env", "../.env")
+
 	logger := log.New(os.Stdout, "", log.LstdFlags|log.LUTC)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
