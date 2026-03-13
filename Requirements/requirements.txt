@@ -1,0 +1,7 @@
+Functional requirements
+1. User can use this service to shorten a URL.
+2. User can access the original URL using the shortened one.
+
+Non-functional requirements
+1. Visiting through a short URL should respond within 100ms.
+2. Generating a new short URL should respond within 1000ms.

@@ -1,0 +1,23 @@
+Core entities
+
+1. short_url
+   - Description: Represents the shortened URL (or its identifier, e.g., code/path) that users share and visit.
+   - Purpose: Acts as the lookup key used to resolve to an `original_url`.
+   - Key attributes (conceptual):
+     - code: The unique short code/path segment.
+     - created_at: When it was generated.
+     - created_by_user_id: Optional reference to `user`.
+
+2. original_url
+   - Description: Represents the original long URL that a `short_url` resolves to.
+   - Purpose: The destination URL used for redirection when a short URL is visited.
+   - Key attributes (conceptual):
+     - url: The full original URL.
+     - normalized_url: Optional canonical form used for deduplication.
+
+3. user
+   - Description: Represents a user of the service (anonymous or authenticated).
+   - Purpose: Ownership/audit of created short URLs and potential quotas/rate limits.
+   - Key attributes (conceptual):
+     - id: The user identifier.
+     - created_at: When the user record was created.
