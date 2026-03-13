@@ -1,24 +1,24 @@
 package httpapi
 
 import (
-	"crypto/rand"
+	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
+
+	"github.com/tianmuwu/short.ly/internal/storage"
 )
 
 type ServerConfig struct {
 	HTTPAddr string
 	Logger   *log.Logger
+	Repo     storage.Repo
 }
 
 func NewServer(cfg ServerConfig) *http.Server {
 	mux := http.NewServeMux()
-	store := newInMemoryStore()
 
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -34,6 +34,11 @@ func NewServer(cfg ServerConfig) *http.Server {
 	mux.HandleFunc("/short_url", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+
+		if cfg.Repo == nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "repo_not_configured"})
 			return
 		}
 
@@ -55,7 +60,10 @@ func NewServer(cfg ServerConfig) *http.Server {
 			return
 		}
 
-		code, err := store.Create(original)
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+
+		code, err := cfg.Repo.CreateShortURL(ctx, original)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "create_failed"})
 			return
@@ -72,6 +80,11 @@ func NewServer(cfg ServerConfig) *http.Server {
 			return
 		}
 
+		if cfg.Repo == nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "repo_not_configured"})
+			return
+		}
+
 		code := strings.TrimPrefix(r.URL.Path, "/original_url/")
 		code = strings.TrimSpace(code)
 		if code == "" || strings.Contains(code, "/") {
@@ -79,8 +92,15 @@ func NewServer(cfg ServerConfig) *http.Server {
 			return
 		}
 
-		original, ok := store.Get(code)
-		if !ok {
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+
+		original, found, err := cfg.Repo.ResolveOriginalURL(ctx, code)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "resolve_failed"})
+			return
+		}
+		if !found {
 			writeJSON(w, http.StatusNotFound, map[string]any{"error": "not_found"})
 			return
 		}
@@ -110,56 +130,4 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
-}
-
-type inMemoryStore struct {
-	mu     sync.RWMutex
-	byCode map[string]string
-}
-
-func newInMemoryStore() *inMemoryStore {
-	return &inMemoryStore{byCode: make(map[string]string)}
-}
-
-func (s *inMemoryStore) Create(originalURL string) (string, error) {
-	for i := 0; i < 5; i++ {
-		code, err := newCode(8)
-		if err != nil {
-			return "", err
-		}
-
-		s.mu.Lock()
-		if _, exists := s.byCode[code]; !exists {
-			s.byCode[code] = originalURL
-			s.mu.Unlock()
-			return code, nil
-		}
-		s.mu.Unlock()
-	}
-	return "", fmt.Errorf("could not allocate unique code")
-}
-
-func (s *inMemoryStore) Get(code string) (string, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	v, ok := s.byCode[code]
-	return v, ok
-}
-
-const codeAlphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
-func newCode(n int) (string, error) {
-	if n <= 0 {
-		return "", fmt.Errorf("invalid code length")
-	}
-
-	b := make([]byte, n)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("rand read: %w", err)
-	}
-
-	for i := range b {
-		b[i] = codeAlphabet[int(b[i])%len(codeAlphabet)]
-	}
-	return string(b), nil
 }

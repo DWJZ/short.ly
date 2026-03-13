@@ -12,6 +12,7 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/tianmuwu/short.ly/internal/httpapi"
+	"github.com/tianmuwu/short.ly/internal/storage"
 )
 
 func main() {
@@ -23,7 +24,21 @@ func main() {
 	defer stop()
 
 	httpAddr := getenv("HTTP_ADDR", "0.0.0.0:8080")
-	srv := httpapi.NewServer(httpapi.ServerConfig{HTTPAddr: httpAddr, Logger: logger})
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		logger.Fatalf("DATABASE_URL is required")
+	}
+
+	repo, err := storage.OpenAndMigrate(databaseURL)
+	if err != nil {
+		logger.Fatalf("db: %v", err)
+	}
+
+	srv := httpapi.NewServer(httpapi.ServerConfig{
+		HTTPAddr: httpAddr,
+		Logger:   logger,
+		Repo:     repo,
+	})
 
 	go func() {
 		logger.Printf("listening on %s", httpAddr)
