@@ -36,7 +36,7 @@ fmt:
 	$(COMPOSE) run --rm backend sh -c "/usr/local/go/bin/gofmt -w ."
 
 test:
-	$(COMPOSE) run --rm backend sh -c "/usr/local/go/bin/go test ./..."
+	$(COMPOSE) run --rm backend sh -c "/usr/local/go/bin/go test -v ./..."
 
 tidy:
 	$(COMPOSE) run --rm backend sh -c "/usr/local/go/bin/go mod tidy"
