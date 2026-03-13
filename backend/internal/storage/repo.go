@@ -33,8 +33,22 @@ func (r *GormRepo) CreateShortURL(ctx context.Context, originalURL string) (stri
 	var outCode string
 
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		orig := OriginalURL{URL: originalURL}
-		if err := tx.Create(&orig).Error; err != nil {
+		var orig OriginalURL
+		if err := tx.Where("url = ?", originalURL).First(&orig).Error; err != nil {
+			if err != gorm.ErrRecordNotFound {
+				return err
+			}
+			orig = OriginalURL{URL: originalURL}
+			if err := tx.Create(&orig).Error; err != nil {
+				return err
+			}
+		}
+
+		var existing ShortURL
+		if err := tx.Where("original_url_id = ?", orig.ID).First(&existing).Error; err == nil {
+			outCode = existing.Code
+			return nil
+		} else if err != nil && err != gorm.ErrRecordNotFound {
 			return err
 		}
 
